@@ -1,0 +1,19 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "login": "admin",
+      "password": "$2a$10$8K1p/a0dRT1FJ.YA5d8Q.u8K1p/a0dRT1FJ.YA5d8Q.u8K1p/a0dR",
+      "role": "admin",
+      "name": "Администратор"
+    },
+    {
+      "id": 2,
+      "login": "student",
+      "password": "$2a$10$8K1p/a0dRT1FJ.YA5d8Q.u8K1p/a0dRT1FJ.YA5d8Q.u8K1p/a0dR",
+      "role": "student",
+      "name": "Иван Петров",
+      "group": "ПИ-21"
+    }
+  ]
+}
