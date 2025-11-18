@@ -3,7 +3,6 @@ console.log('🔥 StudentNotify загружен');
 let currentUser = null;
 let authToken = null;
 
-// 🔐 СИСТЕМА АВТОРИЗАЦИИ
 async function login() {
     const loginValue = document.getElementById('login').value.trim();
     const passwordValue = document.getElementById('password').value.trim();
@@ -91,7 +90,6 @@ function checkAuth() {
     }
 }
 
-// 🎨 УПРАВЛЕНИЕ ИНТЕРФЕЙСОМ
 function showMainInterface() {
     console.log('🖥️ Показ основного интерфейса для:', currentUser.name);
     
@@ -121,7 +119,6 @@ function showLoginForm() {
     document.getElementById('main-interface').classList.add('hidden');
 }
 
-// 📢 СИСТЕМА УВЕДОМЛЕНИЙ
 async function apiRequest(url, options = {}) {
     const headers = {
         'Content-Type': 'application/json',
@@ -280,7 +277,6 @@ async function deleteNotification(id) {
     }
 }
 
-// 🚀 ИНИЦИАЛИЗАЦИЯ
 function setupEnterHandlers() {
     const loginInput = document.getElementById('login');
     const passwordInput = document.getElementById('password');
@@ -306,9 +302,9 @@ document.addEventListener('DOMContentLoaded', function() {
     checkAuth();
 });
 
-// Глобальные функции для HTML
 window.login = login;
 window.logout = logout;
 window.createNotification = createNotification;
 window.deleteNotification = deleteNotification;
+
 window.loadNotifications = loadNotifications;
