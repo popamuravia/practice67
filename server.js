@@ -9,18 +9,15 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key';
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// 📁 Функции для работы с файлами
 async function readNotifications() {
     try {
         const data = await fs.readFile('./data/notifications.json', 'utf8');
         return JSON.parse(data);
     } catch (error) {
-        // Создаем папку и файл если не существует
         await fs.mkdir('./data', { recursive: true });
         const defaultData = { 
             notifications: [
@@ -45,12 +42,9 @@ async function writeNotifications(data) {
     await fs.writeFile('./data/notifications.json', JSON.stringify(data, null, 2));
 }
 
-// 🔐 API Маршруты
 app.post('/api/login', async (req, res) => {
     try {
         const { login, password } = req.body;
-        
-        // Простая проверка для демо
         if (login === 'admin' && password === 'admin') {
             const token = jwt.sign(
                 { id: 1, login: 'admin', role: 'admin' },
@@ -167,7 +161,6 @@ app.delete('/api/notifications/:id', async (req, res) => {
     }
 });
 
-// Health check для Render/Railway
 app.get('/api/health', (req, res) => {
     res.json({ 
         status: 'OK', 
@@ -176,13 +169,12 @@ app.get('/api/health', (req, res) => {
     });
 });
 
-// Статические файлы
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
-
-// Запуск сервера
+а
 app.listen(PORT, () => {
     console.log(`🚀 Сервер запущен на порту ${PORT}`);
     console.log(`🌐 Ссылка: http://localhost:${PORT}`);
+
 });
