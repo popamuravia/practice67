@@ -14,119 +14,205 @@ let currentFilters = {
 };
 
 let pendingFilters = {...currentFilters};
+let pushManager = null;
 
 // 📧 PUSH УВЕДОМЛЕНИЯ - Менеджер
+// 📧 PUSH УВЕДОМЛЕНИЯ - Упрощенный и надежный менеджер
 class PushManager {
     constructor() {
         this.isSupported = 'serviceWorker' in navigator && 'PushManager' in window;
         this.isSubscribed = false;
-        this.swRegistration = null;
-        console.log('📱 Push Manager инициализирован, поддержка:', this.isSupported);
+        this.initialized = false;
+        this.initializationInProgress = false;
+        
+        console.log('📱 Push Manager создан, поддержка:', this.isSupported);
+        
+        // Автоматически инициализируем при создании
+        if (this.isSupported) {
+            this.initialize();
+        } else {
+            this.initialized = true;
+            this.updateStatus('unsupported', 'Браузер не поддерживает Push-уведомления');
+        }
     }
 
-    // Инициализация Push
-    async init() {
-        if (!this.isSupported) {
-            console.log('❌ Push notifications not supported');
-            return false;
+    // Асинхронная инициализация
+    async initialize() {
+        if (this.initializationInProgress) {
+            console.log('🔄 Инициализация уже выполняется...');
+            return;
         }
 
+        this.initializationInProgress = true;
+        
         try {
-            // Регистрируем Service Worker
-            this.swRegistration = await navigator.serviceWorker.register('/sw.js');
-            console.log('✅ Service Worker registered');
+            console.log('🚀 Начало инициализации Push...');
+            this.updateStatus('pending', 'Инициализация...');
 
-            // Ждем активации Service Worker
-            await this.waitForServiceWorker();
-            
-            // Проверяем существующую подписку
-            await this.checkExistingSubscription();
-            
-            return true;
-        } catch (error) {
-            console.error('❌ Push initialization failed:', error);
-            return false;
-        }
-    }
+            // 1. Регистрируем Service Worker
+            console.log('📝 Регистрация Service Worker...');
+            const registration = await navigator.serviceWorker.register('/sw.js');
+            console.log('✅ Service Worker зарегистрирован');
 
-    // Ожидание активации Service Worker
-    async waitForServiceWorker() {
-        return new Promise((resolve) => {
-            if (this.swRegistration.active) {
-                resolve();
-            } else {
-                this.swRegistration.addEventListener('activate', () => resolve());
+            // 2. Ждем пока Service Worker будет готов
+            console.log('⏳ Ожидание активации Service Worker...');
+            if (registration.active) {
+                console.log('✅ Service Worker уже активен');
+            } else if (registration.installing) {
+                await new Promise((resolve) => {
+                    registration.installing.addEventListener('statechange', (e) => {
+                        if (e.target.state === 'activated') {
+                            console.log('✅ Service Worker активирован');
+                            resolve();
+                        }
+                    });
+                });
+            } else if (registration.waiting) {
+                await new Promise((resolve) => {
+                    registration.waiting.addEventListener('statechange', (e) => {
+                        if (e.target.state === 'activated') {
+                            console.log('✅ Service Worker активирован');
+                            resolve();
+                        }
+                    });
+                });
             }
-        });
-    }
 
-    // Проверка существующей подписки
-    async checkExistingSubscription() {
-        try {
-            const subscription = await this.swRegistration.pushManager.getSubscription();
+            // 3. Сохраняем регистрацию
+            this.swRegistration = registration;
+
+            // 4. Проверяем существующую подписку
+            console.log('🔍 Проверка существующей подписки...');
+            const subscription = await registration.pushManager.getSubscription();
+            
             if (subscription) {
                 this.isSubscribed = true;
-                await this.sendSubscriptionToServer(subscription);
-                console.log('✅ Существующая подписка найдена');
+                this.subscription = subscription;
+                console.log('✅ Найдена существующая подписка');
+                this.updateStatus('online', 'Уведомления включены');
+            } else {
+                this.isSubscribed = false;
+                console.log('ℹ️ Подписка не найдена');
+                this.updateStatus('offline', 'Уведомления отключены');
             }
+
+            this.initialized = true;
+            console.log('🎉 Push Manager успешно инициализирован');
+
         } catch (error) {
-            console.error('❌ Ошибка проверки подписки:', error);
+            console.error('❌ Ошибка инициализации Push Manager:', error);
+            this.updateStatus('offline', 'Ошибка инициализации');
+            this.initialized = true; // Все равно помечаем как инициализированный, но с ошибкой
+        } finally {
+            this.initializationInProgress = false;
         }
     }
 
     // Подписка на Push
     async subscribeToPush() {
+        console.log('🔄 Начало процесса подписки...');
+        
+        // Проверяем инициализацию
+        if (!this.initialized) {
+            throw new Error('Push Manager еще не инициализирован. Подождите немного.');
+        }
+
+        if (!this.swRegistration) {
+            throw new Error('Service Worker не зарегистрирован');
+        }
+
         try {
+            this.updateStatus('pending', 'Запрос разрешения...');
+            
             // Запрашиваем разрешение
+            console.log('📋 Запрос разрешения на уведомления...');
             const permission = await Notification.requestPermission();
+            console.log('✅ Результат разрешения:', permission);
+            
             if (permission !== 'granted') {
-                throw new Error('Пользователь отказал в разрешении');
+                throw new Error('Пользователь отказал в разрешении на уведомления');
             }
 
-            // Получаем VAPID public key с сервера
-            const response = await fetch('/api/push/public-key');
-            const { publicKey } = await response.json();
+            this.updateStatus('pending', 'Получение ключа...');
             
-            console.log('🔑 Получен VAPID ключ с сервера');
+            // Получаем VAPID public key с сервера
+            console.log('🔑 Получение VAPID ключа с сервера...');
+            const response = await fetch('/api/push/public-key');
+            
+            if (!response.ok) {
+                throw new Error('Не удалось получить ключ с сервера: ' + response.status);
+            }
+            
+            const keyData = await response.json();
+            console.log('✅ Ключ получен');
+            
+            if (!keyData.publicKey) {
+                throw new Error('Ключ не получен от сервера');
+            }
+
+            this.updateStatus('pending', 'Создание подписки...');
+            console.log('🔧 Создание подписки...');
 
             // Создаем новую подписку
-            const subscription = await this.swRegistration.pushManager.subscribe({
+            this.subscription = await this.swRegistration.pushManager.subscribe({
                 userVisibleOnly: true,
-                applicationServerKey: this.urlBase64ToUint8Array(publicKey)
+                applicationServerKey: this.urlBase64ToUint8Array(keyData.publicKey)
             });
 
             this.isSubscribed = true;
-            await this.sendSubscriptionToServer(subscription);
             
-            console.log('✅ Подписка на Push создана');
-            return subscription;
+            // Сохраняем подписку на сервере
+            console.log('💾 Сохранение подписки на сервере...');
+            await this.sendSubscriptionToServer(this.subscription);
+            
+            this.updateStatus('online', 'Уведомления включены 🎉');
+            console.log('✅ Подписка успешно создана и сохранена');
+            
+            return this.subscription;
             
         } catch (error) {
-            console.error('❌ Push subscription failed:', error);
+            console.error('❌ Ошибка подписки:', error);
+            this.updateStatus('offline', 'Ошибка: ' + error.message);
             throw error;
         }
     }
 
     // Отписка от Push
     async unsubscribeFromPush() {
+        console.log('🔄 Начало процесса отписки...');
+        
+        // Проверяем инициализацию
+        if (!this.initialized) {
+            throw new Error('Push Manager еще не инициализирован');
+        }
+
         try {
-            const subscription = await this.swRegistration.pushManager.getSubscription();
-            if (subscription) {
-                await subscription.unsubscribe();
-                this.isSubscribed = false;
-                
-                // Удаляем подписку с сервера
-                await this.removeSubscriptionFromServer();
-                
-                console.log('✅ Подписка отменена');
+            this.updateStatus('pending', 'Отмена подписки...');
+            
+            if (this.subscription) {
+                console.log('🗑️ Отмена подписки на клиенте...');
+                await this.subscription.unsubscribe();
+                console.log('✅ Подписка отменена на клиенте');
             }
+            
+            this.isSubscribed = false;
+            this.subscription = null;
+            
+            // Удаляем подписку с сервера
+            console.log('🗑️ Удаление подписки с сервера...');
+            await this.removeSubscriptionFromServer();
+            
+            this.updateStatus('offline', 'Уведомления отключены');
+            console.log('✅ Отписка завершена');
+            
         } catch (error) {
-            console.error('❌ Push unsubscription failed:', error);
+            console.error('❌ Ошибка отписки:', error);
+            this.updateStatus('offline', 'Ошибка отписки');
             throw error;
         }
     }
 
-    // Отправка подписки на сервера
+    // Отправка подписки на сервер
     async sendSubscriptionToServer(subscription) {
         try {
             const response = await fetch('/api/push/subscribe', {
@@ -142,9 +228,7 @@ class PushManager {
                 throw new Error(`HTTP error: ${response.status}`);
             }
 
-            const result = await response.json();
             console.log('✅ Подписка сохранена на сервере');
-            return result;
             
         } catch (error) {
             console.error('❌ Error saving subscription:', error);
@@ -172,35 +256,80 @@ class PushManager {
         }
     }
 
+    // Обновление статуса в UI
+    updateStatus(status, message) {
+        const statusElement = document.getElementById('push-status');
+        const detailsElement = document.getElementById('push-details');
+        
+        if (!statusElement) {
+            console.log('⚠️ Элемент push-status не найден в DOM');
+            return;
+        }
+        
+        const dot = statusElement.querySelector('.status-dot');
+        const text = statusElement.querySelector('.status-text');
+        
+        if (!dot || !text) {
+            console.log('⚠️ Элементы статуса не найдены');
+            return;
+        }
+        
+        // Удаляем все классы статуса
+        dot.className = 'status-dot ' + status;
+        text.textContent = message;
+        
+        if (detailsElement) {
+            detailsElement.innerHTML = `<small>${this.getStatusDetails(status)}</small>`;
+        }
+        
+        console.log(`📊 Статус Push обновлен: ${status} - ${message}`);
+    }
+
+    // Детали статуса
+    getStatusDetails(status) {
+        const details = {
+            'online': 'Вы будете получать уведомления даже когда сайт закрыт',
+            'offline': 'Нажмите "Включить уведомления" для активации',
+            'pending': 'Выполняется настройка системы уведомлений',
+            'unsupported': 'Ваш браузер не поддерживает Push-уведомления'
+        };
+        return details[status] || 'Неизвестный статус';
+    }
+
     // Вспомогательная функция для конвертации ключа
     urlBase64ToUint8Array(base64String) {
-        const padding = '='.repeat((4 - base64String.length % 4) % 4);
-        const base64 = (base64String + padding)
-            .replace(/\-/g, '+')
-            .replace(/_/g, '/');
+        try {
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding)
+                .replace(/-/g, '+')
+                .replace(/_/g, '/');
 
-        const rawData = window.atob(base64);
-        const outputArray = new Uint8Array(rawData.length);
+            const rawData = window.atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
 
-        for (let i = 0; i < rawData.length; ++i) {
-            outputArray[i] = rawData.charCodeAt(i);
+            for (let i = 0; i < rawData.length; ++i) {
+                outputArray[i] = rawData.charCodeAt(i);
+            }
+            
+            return outputArray;
+        } catch (error) {
+            console.error('❌ Ошибка конвертации ключа:', error);
+            throw new Error('Неверный формат VAPID ключа');
         }
-        return outputArray;
     }
 }
-
-// Инициализация Push Manager
-const pushManager = new PushManager();
-
 // 🔐 СИСТЕМА АВТОРИЗАЦИИ
 async function login() {
-    const loginValue = document.getElementById('login').value.trim();
-    const passwordValue = document.getElementById('password').value.trim();
+    const loginInput = document.getElementById('login');
+    const passwordInput = document.getElementById('password');
+    
+    const loginValue = loginInput.value.trim();
+    const passwordValue = passwordInput.value.trim();
     
     console.log('🚀 Попытка входа:', loginValue);
     
     if (!loginValue || !passwordValue) {
-        showTempMessage('❌ Пожалуйста, заполните все поля', 'error');
+        showMessage('❌ Пожалуйста, заполните все поля', 'error');
         return;
     }
     
@@ -219,12 +348,12 @@ async function login() {
         console.log('📊 Статус ответа:', response.status);
         
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ error: 'Ошибка сервера' }));
-            throw new Error(errorData.error || `Ошибка сервера: ${response.status}`);
+            const errorText = await response.text();
+            throw new Error(`Ошибка сервера: ${response.status}`);
         }
         
         const result = await response.json();
-        console.log('✅ Ответ сервера:', result);
+        console.log('✅ Успешный вход:', result.user);
         
         if (result.error) {
             throw new Error(result.error);
@@ -235,13 +364,11 @@ async function login() {
         localStorage.setItem('authToken', authToken);
         localStorage.setItem('currentUser', JSON.stringify(currentUser));
         
-        console.log('💾 Данные сохранены');
-        
         await showMainInterface();
         
     } catch (error) {
         console.error('💥 Ошибка входа:', error);
-        showTempMessage('Ошибка входа: ' + error.message, 'error');
+        showMessage('Ошибка входа: ' + error.message, 'error');
     }
 }
 
@@ -259,11 +386,6 @@ function checkAuth() {
     
     const savedToken = localStorage.getItem('authToken');
     const savedUser = localStorage.getItem('currentUser');
-    
-    console.log('📦 Сохраненные данные:', { 
-        token: savedToken ? 'ЕСТЬ' : 'НЕТ', 
-        user: savedUser ? 'ЕСТЬ' : 'НЕТ' 
-    });
     
     if (savedToken && savedUser) {
         try {
@@ -297,27 +419,24 @@ async function showMainInterface() {
     if (currentUser.role === 'admin') {
         document.getElementById('admin-panel').classList.remove('hidden');
         document.getElementById('push-admin-panel').classList.remove('hidden');
-        console.log('✅ Панель администратора показана');
     } else {
         document.getElementById('admin-panel').classList.add('hidden');
         document.getElementById('push-admin-panel').classList.add('hidden');
-        console.log('✅ Панель администратора скрыта');
     }
     
-    // Инициализация Push уведомлений
-    if (pushManager.isSupported) {
-        console.log('📱 Инициализация Push уведомлений...');
-        const pushSuccess = await pushManager.init();
-        if (pushSuccess) {
-            updatePushUI();
-        }
+    // ✅ Инициализация Push Manager
+    if (!pushManager) {
+        console.log('🚀 Создание Push Manager...');
+        pushManager = new PushManager();
     } else {
-        console.log('❌ Браузер не поддерживает Push уведомления');
-        document.getElementById('push-admin-panel').classList.add('hidden');
+        console.log('📱 Push Manager уже создан');
     }
     
+    // Инициализация Search и уведомлений
     initializeSearch();
     await loadNotifications();
+    
+    console.log('✅ Главный интерфейс показан');
 }
 
 function showLoginForm() {
@@ -341,25 +460,20 @@ async function apiRequest(url, options = {}) {
     }
     
     try {
-        console.log('🌐 API запрос:', url);
-        
         const response = await fetch(url, {
             ...options,
             headers
         });
         
-        console.log('📡 Статус ответа:', response.status);
-        
         if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`HTTP ошибка: ${response.status} - ${errorText}`);
+            throw new Error(`HTTP ошибка: ${response.status}`);
         }
         
         return await response.json();
         
     } catch (error) {
         console.error('❌ Ошибка API:', error);
-        throw new Error('Не удалось подключиться к серверу: ' + error.message);
+        throw new Error('Не удалось подключиться к серверу');
     }
 }
 
@@ -372,21 +486,20 @@ async function loadNotifications() {
         
         allNotifications = data;
         
-        if (!window.searchInitialized) {
-            initializeSearch();
-            window.searchInitialized = true;
-        }
-        
         applyFilters();
         
     } catch (error) {
         console.error('❌ Ошибка загрузки уведомлений:', error);
+        showMessage('Ошибка загрузки уведомлений: ' + error.message, 'error');
+        
+        // Показываем пустое состояние
         const container = document.getElementById('notifications-container');
         container.innerHTML = `
-            <div class="card" style="color: red; text-align: center; padding: 20px;">
-                <h3>Ошибка загрузки уведомлений</h3>
+            <div class="card empty-state">
+                <div class="icon">⚠️</div>
+                <h3>Ошибка загрузки</h3>
                 <p>${error.message}</p>
-                <button onclick="loadNotifications()" class="btn btn-primary" style="margin-top: 15px;">
+                <button onclick="loadNotifications()" class="btn btn-primary">
                     Попробовать снова
                 </button>
             </div>
@@ -401,9 +514,9 @@ function displayFilteredNotifications(notifications) {
         container.innerHTML = `
             <div class="card empty-state">
                 <div class="icon">🔍</div>
-                <h3>Ничего не найдено</h3>
-                <p>Попробуйте изменить параметры поиска или фильтры</p>
-                <button onclick="clearFilters()" class="btn btn-primary" style="margin-top: 15px;">
+                <h3>Уведомлений не найдено</h3>
+                <p>Попробуйте изменить параметры поиска</p>
+                <button onclick="clearFilters()" class="btn btn-primary">
                     Сбросить фильтры
                 </button>
             </div>
@@ -451,8 +564,8 @@ function displayFilteredNotifications(notifications) {
         
         if (currentFilters.searchText) {
             const regex = new RegExp(`(${escapeRegExp(currentFilters.searchText)})`, 'gi');
-            highlightedTitle = notification.title.replace(regex, '<span class="highlight">$1</span>');
-            highlightedContent = notification.content.replace(regex, '<span class="highlight">$1</span>');
+            highlightedTitle = notification.title.replace(regex, '<mark>$1</mark>');
+            highlightedContent = notification.content.replace(regex, '<mark>$1</mark>');
         }
         
         return `
@@ -490,7 +603,7 @@ function displayFilteredNotifications(notifications) {
             <div class="notification-meta">
                 <div class="meta-left">
                     <span class="meta-item">👤 ${notification.author}</span>
-                    <span class="meta-item">📅 ${new Date(notification.created_at).toLocaleString()}</span>
+                    <span class="meta-item">📅 ${formatDate(notification.created_at)}</span>
                 </div>
                 
                 ${isAdmin ? `
@@ -505,47 +618,19 @@ function displayFilteredNotifications(notifications) {
 }
 
 async function createNotification() {
-    console.log('📝 Попытка создания уведомления');
-    
     const title = document.getElementById('notification-title').value.trim();
     const content = document.getElementById('notification-content').value.trim();
     const is_important = document.getElementById('notification-important').checked;
     const category = document.getElementById('notification-category').value;
     const priority = document.getElementById('notification-priority').value;
     const tagsInput = document.getElementById('notification-tags').value.trim();
-    const send_push = document.getElementById('notification-push').checked;
     
-    console.log('📋 Данные формы:', {
-        title,
-        contentLength: content.length,
-        is_important,
-        category,
-        priority,
-        tagsInput,
-        send_push
-    });
-    
-    if (!title) {
-        showTempMessage('❌ Пожалуйста, введите заголовок уведомления', 'error');
-        document.getElementById('notification-title').focus();
-        return;
-    }
-    
-    if (!content) {
-        showTempMessage('❌ Пожалуйста, введите содержание уведомления', 'error');
-        document.getElementById('notification-content').focus();
-        return;
-    }
-    
-    if (content.length < 5) {
-        showTempMessage('❌ Содержание уведомления должно быть не менее 5 символов', 'error');
-        document.getElementById('notification-content').focus();
+    if (!title || !content) {
+        showMessage('❌ Заголовок и содержание обязательны', 'error');
         return;
     }
     
     try {
-        console.log('📡 Отправка запроса на создание уведомления...');
-        
         let tags = [];
         if (tagsInput) {
             tags = tagsInput.split(',')
@@ -565,21 +650,15 @@ async function createNotification() {
                 is_important,
                 category,
                 priority,
-                tags,
-                send_push: send_push || is_important
+                tags
             })
         });
         
-        console.log('📊 Статус ответа:', response.status);
-        
         if (!response.ok) {
-            const errorText = await response.text();
-            console.error('❌ Ошибка сервера:', errorText);
             throw new Error(`Ошибка сервера: ${response.status}`);
         }
         
         const result = await response.json();
-        console.log('✅ Уведомление создано:', result);
         
         // Очистка формы
         document.getElementById('notification-title').value = '';
@@ -588,18 +667,15 @@ async function createNotification() {
         document.getElementById('notification-category').value = 'общее';
         document.getElementById('notification-priority').value = 'medium';
         document.getElementById('notification-tags').value = '';
-        document.getElementById('notification-push').checked = false;
         
-        showTempMessage('✅ Уведомление успешно создано!', 'success');
+        showMessage('✅ Уведомление успешно создано!', 'success');
         
         // Перезагрузка уведомлений
-        setTimeout(() => {
-            loadNotifications();
-        }, 1000);
+        await loadNotifications();
         
     } catch (error) {
         console.error('💥 Ошибка создания уведомления:', error);
-        showTempMessage('❌ Ошибка создания уведомления: ' + error.message, 'error');
+        showMessage('❌ Ошибка создания уведомления: ' + error.message, 'error');
     }
 }
 
@@ -611,11 +687,11 @@ async function deleteNotification(id) {
             method: 'DELETE'
         });
         
-        showTempMessage('✅ Уведомление удалено!', 'success');
+        showMessage('✅ Уведомление удалено!', 'success');
         await loadNotifications();
         
     } catch (error) {
-        showTempMessage('❌ Ошибка удаления: ' + error.message, 'error');
+        showMessage('❌ Ошибка удаления: ' + error.message, 'error');
     }
 }
 
@@ -624,10 +700,13 @@ function initializeSearch() {
     console.log('🔍 Инициализация поиска и фильтров');
     
     // Поиск по вводу
-    document.getElementById('search-input').addEventListener('input', function(e) {
-        pendingFilters.searchText = e.target.value.toLowerCase();
-        updatePreviewStats();
-    });
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) {
+        searchInput.addEventListener('input', function(e) {
+            pendingFilters.searchText = e.target.value.toLowerCase();
+            updatePreviewStats();
+        });
+    }
     
     // Фильтры
     const filterIds = [
@@ -645,12 +724,6 @@ function initializeSearch() {
         }
     });
     
-    // Кнопка применения фильтров
-    const applyBtn = document.getElementById('apply-filters');
-    if (applyBtn) {
-        applyBtn.addEventListener('click', applyFilters);
-    }
-    
     updateFilterIndicators();
 }
 
@@ -660,7 +733,6 @@ function applyFilters() {
     currentFilters = {...pendingFilters};
     
     if (allNotifications.length === 0) {
-        console.log('❌ Нет уведомлений для фильтрации');
         updateSearchStats(0, 0);
         return;
     }
@@ -709,27 +781,25 @@ function applyFilters() {
     updateSearchStats(filteredNotifications.length, allNotifications.length);
     displayFilteredNotifications(filteredNotifications);
     updateFilterIndicators();
-    
-    showTempMessage('✅ Фильтры применены!', 'success');
 }
 
 function updateFilterIndicators() {
-    const categorySelect = document.getElementById('filter-category');
-    const prioritySelect = document.getElementById('filter-priority');
-    const importanceSelect = document.getElementById('filter-importance');
-    const authorSelect = document.getElementById('filter-author');
-    const dateFromInput = document.getElementById('filter-date-from');
-    const dateToInput = document.getElementById('filter-date-to');
+    const filterElements = [
+        'filter-category', 'filter-priority', 'filter-importance', 
+        'filter-author', 'filter-date-from', 'filter-date-to'
+    ];
     
-    [categorySelect, prioritySelect, importanceSelect, authorSelect, dateFromInput, dateToInput]
-        .forEach(el => el?.classList.remove('filter-active'));
-    
-    if (pendingFilters.category !== 'all') categorySelect?.classList.add('filter-active');
-    if (pendingFilters.priority !== 'all') prioritySelect?.classList.add('filter-active');
-    if (pendingFilters.importance !== 'all') importanceSelect?.classList.add('filter-active');
-    if (pendingFilters.author !== 'all') authorSelect?.classList.add('filter-active');
-    if (pendingFilters.dateFrom) dateFromInput?.classList.add('filter-active');
-    if (pendingFilters.dateTo) dateToInput?.classList.add('filter-active');
+    filterElements.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            const filterName = id.replace('filter-', '');
+            if (pendingFilters[filterName] !== 'all' && pendingFilters[filterName] !== '') {
+                element.classList.add('filter-active');
+            } else {
+                element.classList.remove('filter-active');
+            }
+        }
+    });
     
     updatePreviewStats();
 }
@@ -741,18 +811,12 @@ function updatePreviewStats() {
     const statsElement = document.getElementById('search-stats');
     
     if (statsElement) {
-        const filtersAreEqual = JSON.stringify(pendingFilters) === JSON.stringify(currentFilters);
-        
-        if (filtersAreEqual) {
-            statsElement.innerHTML = `Показано <span id="shown-count">${previewCount}</span> из <span id="total-count">${allNotifications.length}</span> уведомлений`;
+        if (JSON.stringify(pendingFilters) === JSON.stringify(currentFilters)) {
+            statsElement.innerHTML = `Показано <strong>${previewCount}</strong> из ${allNotifications.length} уведомлений`;
         } else {
-            const changes = getFilterChanges();
             statsElement.innerHTML = `
-                <div style="color: #e67e22; font-weight: bold;">⚡ Фильтры не применены</div>
-                <div style="font-size: 0.9rem; margin-top: 5px;">
-                    Будет показано: ${previewCount} из ${allNotifications.length}
-                    ${changes ? `<br>Изменения: ${changes}` : ''}
-                </div>
+                <div style="color: #e67e22;">⚡ Фильтры не применены</div>
+                <div>Будет показано: <strong>${previewCount}</strong> из ${allNotifications.length}</div>
             `;
         }
     }
@@ -797,81 +861,21 @@ function calculatePreviewCount() {
     }).length;
 }
 
-function getFilterChanges() {
-    const changes = [];
-    
-    if (pendingFilters.category !== currentFilters.category) {
-        changes.push(`категория: ${pendingFilters.category}`);
-    }
-    if (pendingFilters.priority !== currentFilters.priority) {
-        changes.push(`приоритет: ${pendingFilters.priority}`);
-    }
-    if (pendingFilters.importance !== currentFilters.importance) {
-        changes.push(`важность: ${pendingFilters.importance}`);
-    }
-    if (pendingFilters.author !== currentFilters.author) {
-        changes.push(`автор: ${pendingFilters.author}`);
-    }
-    if (pendingFilters.dateFrom !== currentFilters.dateFrom) {
-        changes.push(`дата с: ${pendingFilters.dateFrom || 'не установлена'}`);
-    }
-    if (pendingFilters.dateTo !== currentFilters.dateTo) {
-        changes.push(`дата по: ${pendingFilters.dateTo || 'не установлена'}`);
-    }
-    
-    return changes.join(', ');
-}
-
 function updateSearchStats(shown, total) {
     const statsElement = document.getElementById('search-stats');
-    const shownCountElement = document.getElementById('shown-count');
-    const totalCountElement = document.getElementById('total-count');
     
-    console.log(`📊 Обновление статистики: ${shown} из ${total}`);
-    
-    if (statsElement && shownCountElement && totalCountElement) {
-        shownCountElement.textContent = shown;
-        totalCountElement.textContent = total;
-        
-        const filtersAreApplied = JSON.stringify(pendingFilters) === JSON.stringify(currentFilters);
-        const hasActiveFilters = !isDefaultFilters(currentFilters);
-        
-        statsElement.className = 'search-stats';
-        
+    if (statsElement) {
         if (shown === 0 && total > 0) {
             statsElement.innerHTML = `
-                <div style="color: #e74c3c; font-weight: bold;">🔍 Уведомления не найдены</div>
-                <div style="font-size: 0.8rem; margin-top: 5px;">Попробуйте изменить параметры поиска</div>
+                <div style="color: #e74c3c;">🔍 Уведомления не найдены</div>
+                <div>Попробуйте изменить параметры поиска</div>
             `;
-            statsElement.classList.add('warning');
-        } else if (shown === total && !hasActiveFilters) {
-            statsElement.innerHTML = `Все уведомления: <span id="shown-count">${total}</span>`;
-            statsElement.classList.add('success');
-        } else if (shown === total && hasActiveFilters) {
-            statsElement.innerHTML = `Показаны все <span id="shown-count">${shown}</span> уведомлений`;
-            statsElement.classList.add('success');
-        } else if (!filtersAreApplied) {
-            statsElement.innerHTML = `
-                <div style="color: #e67e22; font-weight: bold;">⚡ Фильтры не применены</div>
-                <div style="font-size: 0.8rem; margin-top: 3px;">Будет показано: <strong>${shown}</strong> из ${total}</div>
-                <div style="font-size: 0.75rem; margin-top: 2px; color: #888;">Нажмите "Применить"</div>
-            `;
-            statsElement.classList.add('warning');
+        } else if (shown === total) {
+            statsElement.innerHTML = `Все уведомления: <strong>${total}</strong>`;
         } else {
-            statsElement.innerHTML = `Показано <span id="shown-count">${shown}</span> из <span id="total-count">${total}</span> уведомлений`;
-            statsElement.classList.add('success');
+            statsElement.innerHTML = `Показано <strong>${shown}</strong> из ${total} уведомлений`;
         }
     }
-}
-
-function isDefaultFilters(filters) {
-    return filters.searchText === '' &&
-           filters.category === 'all' &&
-           filters.priority === 'all' &&
-           filters.importance === 'all' &&
-           filters.author === 'all' &&
-           filters.dateFrom === '' &&
-           filters.dateTo === '';
 }
 
 function clearFilters() {
@@ -898,15 +902,13 @@ function clearFilters() {
     
     if (allNotifications.length > 0) {
         displayFilteredNotifications(allNotifications);
-        setTimeout(() => {
-            updateSearchStats(allNotifications.length, allNotifications.length);
-        }, 100);
+        updateSearchStats(allNotifications.length, allNotifications.length);
     } else {
         updateSearchStats(0, 0);
     }
     
     updateFilterIndicators();
-    showTempMessage('🗑️ Все фильтры очищены!', 'success');
+    showMessage('🗑️ Все фильтры очищены!', 'success');
 }
 
 function searchByTag(tag) {
@@ -915,64 +917,70 @@ function searchByTag(tag) {
     document.getElementById('search-input').value = tag;
     pendingFilters.searchText = tag.toLowerCase();
     applyFilters();
-    
-    document.querySelector('.search-filters-panel').scrollIntoView({ 
-        behavior: 'smooth' 
-    });
 }
 
 // 📧 PUSH УВЕДОМЛЕНИЯ - UI Функции
-function updatePushUI() {
-    const statusElement = document.getElementById('push-status');
-    const toggleBtn = document.getElementById('push-toggle-btn');
-    const testBtn = document.getElementById('push-test-btn');
-    
-    if (!statusElement || !toggleBtn) return;
-    
-    const isAdmin = currentUser && currentUser.role === 'admin';
-    
-    // Показываем/скрываем кнопку теста для админов
-    if (testBtn) {
-        testBtn.style.display = isAdmin ? 'inline-block' : 'none';
-    }
-    
-    if (pushManager.isSubscribed) {
-        statusElement.innerHTML = '<span class="status-dot online"></span><span>Уведомления включены</span>';
-        toggleBtn.textContent = 'Отключить уведомления';
-        toggleBtn.className = 'btn btn-danger';
-    } else {
-        statusElement.innerHTML = '<span class="status-dot offline"></span><span>Уведомления отключены</span>';
-        toggleBtn.textContent = 'Включить уведомления';
-        toggleBtn.className = 'btn btn-primary';
-    }
-}
-
+// 🔧 Улучшенная функция переключения Push
 async function togglePushNotifications() {
+    // ✅ Проверяем что pushManager существует
+    if (!pushManager) {
+        console.error('❌ pushManager не инициализирован');
+        showMessage('❌ Система уведомлений не инициализирована. Перезагрузите страницу.', 'error');
+        return;
+    }
+    
     const btn = document.getElementById('push-toggle-btn');
     
     if (!pushManager.isSupported) {
-        showTempMessage('Ваш браузер не поддерживает Push-уведомления', 'error');
+        showMessage('❌ Ваш браузер не поддерживает Push-уведомления', 'error');
+        return;
+    }
+
+    // Проверяем инициализацию
+    if (!pushManager.initialized) {
+        showMessage('🔄 Система уведомлений еще не готова. Подождите немного...', 'error');
         return;
     }
 
     try {
+        btn.disabled = true;
+        btn.textContent = '⏳ Обработка...';
+        
         if (pushManager.isSubscribed) {
             await pushManager.unsubscribeFromPush();
-            showTempMessage('Push-уведомления отключены', 'success');
+            showMessage('🔕 Push-уведомления отключены', 'success');
         } else {
             await pushManager.subscribeToPush();
-            showTempMessage('Push-уведомления включены', 'success');
+            showMessage('🔔 Push-уведомления включены!', 'success');
         }
-        updatePushUI();
+        
     } catch (error) {
-        console.error('Push toggle error:', error);
-        showTempMessage('Ошибка настройки уведомлений: ' + error.message, 'error');
+        console.error('❌ Ошибка переключения Push:', error);
+        showMessage('❌ Ошибка: ' + error.message, 'error');
+    } finally {
+        btn.disabled = false;
+        // Обновляем текст кнопки
+        updatePushButtonText();
+    }
+}
+
+// 🔧 Функция обновления текста кнопки
+function updatePushButtonText() {
+    const btn = document.getElementById('push-toggle-btn');
+    if (!btn || !pushManager) return;
+    
+    if (pushManager.isSubscribed) {
+        btn.textContent = 'Отключить уведомления';
+        btn.className = 'btn btn-danger';
+    } else {
+        btn.textContent = 'Включить уведомления';
+        btn.className = 'btn btn-primary';
     }
 }
 
 async function testPushNotification() {
     if (currentUser.role !== 'admin') {
-        showTempMessage('Только администраторы могут отправлять тестовые уведомления', 'error');
+        showMessage('❌ Только администраторы могут отправлять тестовые уведомления', 'error');
         return;
     }
 
@@ -984,25 +992,76 @@ async function testPushNotification() {
                 'Authorization': `Bearer ${authToken}`
             },
             body: JSON.stringify({
-                title: 'Тестовое уведомление',
-                message: '✅ Push-система работает корректно!'
+                title: 'Тестовое уведомление 🔔',
+                message: 'Это тестовое Push-уведомление от StudentNotify!'
             })
         });
 
         const result = await response.json();
         
         if (response.ok) {
-            showTempMessage(`Тест отправлен (${result.sentCount} пользователей)`, 'success');
+            showMessage(`✅ Тестовый Push отправлен (${result.sentCount} пользователей)`, 'success');
         } else {
-            throw new Error(result.error || 'Failed to send test');
+            throw new Error(result.error || 'Ошибка отправки');
         }
     } catch (error) {
-        console.error('Test push error:', error);
-        showTempMessage('Ошибка отправки теста: ' + error.message, 'error');
+        console.error('❌ Ошибка отправки тестового Push:', error);
+        showMessage('❌ Ошибка отправки теста: ' + error.message, 'error');
     }
 }
+
+async function sendCustomPush() {
+    if (currentUser.role !== 'admin') {
+        showMessage('❌ Только администраторы могут отправлять Push-уведомления', 'error');
+        return;
+    }
+
+    const titleInput = document.getElementById('push-title');
+    const messageInput = document.getElementById('push-message');
+    
+    const title = titleInput ? titleInput.value.trim() : '';
+    const message = messageInput ? messageInput.value.trim() : '';
+
+    if (!title || !message) {
+        showMessage('❌ Заполните заголовок и сообщение', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/push/test', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({
+                title: title,
+                message: message
+            })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            showMessage(`✅ Push отправлен (${result.sentCount} пользователям)`, 'success');
+            
+            // Очистка формы
+            if (titleInput) titleInput.value = '';
+            if (messageInput) messageInput.value = '';
+            
+        } else {
+            throw new Error(result.error || 'Ошибка отправки');
+        }
+
+    } catch (error) {
+        console.error('❌ Ошибка отправки кастомного Push:', error);
+        showMessage('❌ Ошибка отправки: ' + error.message, 'error');
+    }
+}
+
 // 🚀 ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-function showTempMessage(message, type = 'success') {
+function showMessage(message, type = 'success') {
+    // Удаляем существующие сообщения
     const existingMessages = document.querySelectorAll('.temp-message');
     existingMessages.forEach(msg => msg.remove());
     
@@ -1020,12 +1079,10 @@ function showTempMessage(message, type = 'success') {
         z-index: 10000;
         background: ${type === 'success' ? '#27ae60' : type === 'error' ? '#e74c3c' : '#3498db'};
         box-shadow: 0 6px 20px rgba(0,0,0,0.3);
-        border: 2px solid ${type === 'success' ? '#219653' : type === 'error' ? '#c0392b' : '#2980b9'};
         transform: translateX(400px);
         opacity: 0;
         transition: all 0.5s ease;
         max-width: 400px;
-        word-wrap: break-word;
     `;
     
     document.body.appendChild(messageDiv);
@@ -1050,6 +1107,11 @@ function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleString('ru-RU');
+}
+
 // 🚀 ИНИЦИАЛИЗАЦИЯ
 function setupEnterHandlers() {
     const loginInput = document.getElementById('login');
@@ -1066,8 +1128,6 @@ function setupEnterHandlers() {
             if (e.key === 'Enter') login();
         });
     }
-    
-    console.log('✅ Обработчики Enter настроены');
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -1075,6 +1135,7 @@ document.addEventListener('DOMContentLoaded', function() {
     setupEnterHandlers();
     checkAuth();
 });
+
 
 // Глобальные функции для HTML
 window.login = login;
@@ -1087,3 +1148,4 @@ window.applyFilters = applyFilters;
 window.searchByTag = searchByTag;
 window.togglePushNotifications = togglePushNotifications;
 window.testPushNotification = testPushNotification;
+window.sendCustomPush = sendCustomPush;
