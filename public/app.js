@@ -1,3 +1,4 @@
+
 console.log('🔥 StudentNotify загружен');
 
 let currentUser = null;
@@ -91,9 +92,17 @@ class PushManager {
                 console.log('✅ Найдена существующая подписка');
                 this.updateStatus('online', 'Уведомления включены');
             } else {
-                this.isSubscribed = false;
-                console.log('ℹ️ Подписка не найдена');
-                this.updateStatus('offline', 'Уведомления отключены');
+                // Если браузер разрешил уведомления, но подписка отсутствует
+if (Notification.permission === "granted") {
+    console.log("ℹ️ Разрешение уже есть, но подписки нет — кнопка должна предложить включение");
+    this.updateStatus('offline', 'Уведомления выключены');
+} else if (Notification.permission === "denied") {
+    console.log("🚫 Пользователь запретил уведомления");
+    this.updateStatus('offline', 'Уведомления запрещены в браузере');
+} else {
+    this.updateStatus('offline', 'Уведомления отключены');
+}
+
             }
 
             this.initialized = true;
@@ -108,6 +117,7 @@ class PushManager {
         }
     }
 
+    
     // Подписка на Push
     async subscribeToPush() {
         console.log('🔄 Начало процесса подписки...');
@@ -281,6 +291,11 @@ class PushManager {
         if (detailsElement) {
             detailsElement.innerHTML = `<small>${this.getStatusDetails(status)}</small>`;
         }
+        // Сразу обновляем текст кнопки в UI
+if (typeof updatePushButtonText === 'function') {
+    updatePushButtonText();
+}
+
         
         console.log(`📊 Статус Push обновлен: ${status} - ${message}`);
     }
@@ -316,7 +331,21 @@ class PushManager {
             console.error('❌ Ошибка конвертации ключа:', error);
             throw new Error('Неверный формат VAPID ключа');
         }
+        // Инициализация Push системы
+function initializePushSystem() {
+    if (!pushManager) return;
+    
+    // Обновляем статус каждые 2 секунды пока не инициализируется
+    const statusInterval = setInterval(() => {
+        updateSystemStatus();
+        
+        if (pushManager.initialized) {
+            clearInterval(statusInterval);
+        }
+    }, 2000);
+}
     }
+    
 }
 // 🔐 СИСТЕМА АВТОРИЗАЦИИ
 async function login() {
