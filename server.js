@@ -28,8 +28,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key';
 
 // Инициализация Web Push
 const vapidKeys = {
-  publicKey: process.env.VAPID_PUBLIC_KEY || 'BLx1kYc7V4vJbR6W8tX2yV9uB3zQ5nM7pK9jL1hG4dF6rT8wE0qA3sC5vY7iZ2xN4',
-  privateKey: process.env.VAPID_PRIVATE_KEY || 'qW5zR8tX2yV9uB3wE6nH8mK1jL4pO7rT0qA3sC5vF9iY2xN4bM7pK9jL1hG4dF6'
+  publicKey: process.env.VAPID_PUBLIC_KEY || 'BDGtRpgdvZguMVsRpllMjFd83WWPDwzskC85Maof6JHQ2Yq3INAkxYOZp9c6283OckrKVmlsPt8Kmh6VY2SODUY',
+  privateKey: process.env.VAPID_PRIVATE_KEY || 'JT62L5oUBsTidBFARGHXu4ogjsDRdRyv9cu-8vl5llU'
 };
 
 try {
