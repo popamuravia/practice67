@@ -34,6 +34,184 @@
         .hidden {
             display: none !important;
         }
+        /* 🔍 СТИЛИ ДЛЯ ПОИСКА И ФИЛЬТРОВ */
+.search-filters-panel {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    margin: 25px 0;
+    border: 2px solid transparent;
+    transition: border-color 0.3s ease;
+}
+
+.search-filters-panel.has-active-filters {
+    border-color: var(--primary);
+    background: rgba(67, 97, 238, 0.02);
+}
+
+.search-box {
+    margin-bottom: 15px;
+}
+
+.search-input {
+    width: 100%;
+    padding: 12px 16px;
+    border: 2px solid var(--border);
+    border-radius: 25px;
+    font-size: 16px;
+    transition: all 0.3s ease;
+    background: var(--light);
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.1);
+}
+
+.filters-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+    align-items: center;
+}
+
+.date-filters {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.filter-buttons {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.filter-select, .filter-date {
+    padding: 10px 12px;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    background: white;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+.filter-select:focus, .filter-date:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(67, 97, 238, 0.1);
+}
+
+.filters-row .btn {
+    white-space: nowrap;
+    min-width: 90px;
+    padding: 10px 15px;
+    font-weight: 600;
+}
+
+.filter-date {
+    min-width: 140px;
+}
+
+.filters-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.search-stats {
+    text-align: center;
+    padding: 12px;
+    background: var(--light);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    border-left: 4px solid var(--primary);
+    margin-top: 10px
+}
+
+.form-textarea {
+    min-height: 150px;
+    resize: vertical;
+    font-family: inherit;
+    line-height: 1.5;
+}
+
+.form-label[for*="title"],
+.form-label[for*="content"] {
+    position: relative;
+}
+
+.form-label[for*="title"]::after,
+.form-label[for*="content"]::after {
+    content: " *";
+    color: #e74c3c;
+}
+
+
+.search-stats.warning {
+    background: #fff3cd;
+    border-left-color: #ffc107;
+    color: #856404;
+}
+
+.active-filters-badge {
+    background: var(--primary);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    margin-left: 10px;
+}
+
+/* Адаптивность для мобильных */
+@media (max-width: 768px) {
+    .filters-row {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+    
+   .filter-date {
+    width: 100%;
+    min-width: 120px;
+    padding: 10px 12px;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    background: white;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+    .filters-row .btn {
+        grid-column: span 1;
+    }
+}
+
+@media (max-width: 480px) {
+    .filters-row {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.filter-active {
+    border-color: var(--primary) !important;
+    background-color: rgba(67, 97, 238, 0.05) !important;
+}
+
+/* Стиль для скрытых уведомлений */
+.notification-card.hidden-by-filter {
+    display: none !important;
+}
+
+/* Подсветка найденного текста */
+.highlight {
+    background-color: #ffeb3b;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-weight: bold;
+    color: #333;
+}
 
         .container {
             max-width: 1200px;
@@ -192,7 +370,7 @@
 
         .btn-sm {
             padding: 10px 18px;
-            font-size: 14px;
+            font-size: 12px;
         }
 
         .main-header {
@@ -273,6 +451,63 @@
             gap: 24px;
             margin-bottom: 24px;
         }
+
+        .category-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-right: 8px;
+    margin-bottom: 5px;
+}
+
+/* Цвета для разных категорий */
+.category-general { background: #e3f2fd; color: #1565c0; }
+.category-schedule { background: #e8f5e8; color: #2e7d32; }
+.category-studies { background: #fff3e0; color: #ef6c00; }
+.category-events { background: #fce4ec; color: #c2185b; }
+.category-technical { background: #f3e5f5; color: #7b1fa2; }
+.category-urgent { background: #ffebee; color: #c62828; }
+
+.priority-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-left: 8px;
+}
+
+.priority-critical { background: #ffcdd2; color: #c62828; border: 1px solid #c62828; }
+.priority-high { background: #ffecb3; color: #ff8f00; border: 1px solid #ff8f00; }
+.priority-medium { background: #e8f5e8; color: #2e7d32; border: 1px solid #2e7d32; }
+.priority-low { background: #e3f2fd; color: #1565c0; border: 1px solid #1565c0; }
+
+        .tags-cloud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 10px 0;
+}
+
+        .tag {
+    background: var(--light);
+    color: var(--gray);
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    border: 1px solid var(--border);
+}
+
+.tag:hover {
+    background: var(--primary);
+    color: white;
+    transform: translateY(-1px);
+    cursor: pointer;
+}
 
         .checkbox-group {
             display: flex;
@@ -368,7 +603,14 @@
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            margin-bottom: 18px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+         .notification-title-section {
+            flex: 1;
+            min-width: 200px;
         }
 
         .notification-title {
@@ -407,6 +649,13 @@
             font-size: 0.9rem;
             color: var(--gray);
         }
+
+        .notification-meta-badges {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
 
         .meta-left {
             display: flex;
@@ -453,9 +702,14 @@
             }
             
             .notification-header {
-                flex-direction: column;
-                gap: 12px;
-            }
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .notification-meta-badges {
+        margin-top: 10px;
+    }
+
             
             .notification-meta {
                 flex-direction: column;
