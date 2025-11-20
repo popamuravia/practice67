@@ -1,334 +1,219 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>StudentNotify</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="manifest" href="/manifest.json">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>StudentNotify</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- 🔐 ФОРМА ВХОДА -->
-    <div id="login-form" class="login-container">
-        <div class="card login-card">
-            <div class="login-header">
-                <h1>StudentNotify</h1>
-                <p>Система информирования студентов</p>
-            </div>
-            
-            <div class="form-group">
-                <label class="form-label">👤 Логин</label>
-                <input type="text" id="login" class="form-input" placeholder="Введите ваш логин" value="">
-            </div>
-            
-            <div class="form-group">
-                <label class="form-label">🔒 Пароль</label>
-                <input type="password" id="password" class="form-input" placeholder="Введите ваш пароль" value="">
-            </div>
-            
-            <button onclick="login()" class="btn btn-primary">
-                🚀 Войти в систему
-            </button>
+  <div class="app">
+    <!-- Login -->
+    <div id="login-screen" class="screen center">
+      <div class="card auth-card">
+        <h1 class="brand">StudentNotify</h1>
+        <p class="muted">Система информирования студентов</p>
+        <div class="form">
+          <label>Логин</label>
+          <input id="login" type="text" placeholder="Введите логин" />
+          <label>Пароль</label>
+          <input id="password" type="password" placeholder="Введите пароль" />
+          <button class="btn primary" onclick="login()" style="margin-top:14px">Войти</button>
         </div>
+      </div>
     </div>
 
-    <!-- 🏠 ОСНОВНОЙ ИНТЕРФЕЙС -->
-    <div id="main-interface" class="hidden">
-        <!-- ШАПКА -->
-        <header class="main-header">
-            <div class="container">
-                <div class="header-content">
-                    <div class="logo">
-                        <h1>🎓 StudentNotify</h1>
-                    </div>
-                    <div class="user-info">
-                        <span class="user-badge" id="user-info"></span>
-                        <button onclick="logout()" class="btn btn-outline btn-sm">
-                            🚪 Выйти
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </header>
+    <!-- Main app -->
+    <div id="main-app" class="screen hidden">
+      <header class="topbar">
+        <div class="container bar-grid">
+          <div class="brand-area">
+            <div class="brand">StudentNotify</div>
+          </div>
+          <nav class="tabs" id="tabs">
+            <button class="tab active" data-tab="notifications" onclick="showTab('notifications')">Уведомления</button>
+            <button class="tab" data-tab="filters" onclick="showTab('filters')">Фильтры</button>
+            <button class="tab" data-tab="settings" onclick="showTab('settings')">Настройки</button>
+            <button class="tab hidden" data-tab="admin" id="admin-tab" onclick="showTab('admin')">Админ</button>
+          </nav>
+          <div class="user-area">
+            <span id="user-info" class="user-info"></span>
+            <button class="btn outline small" onclick="logout()">Выйти</button>
+          </div>
+        </div>
+      </header>
 
-        <!-- 📝 ПАНЕЛЬ АДМИНИСТРАТОРА -->
-        <div id="admin-panel" class="hidden">
-            <!-- Push Admin Panel -->
-<div id="push-admin-panel" class="admin-panel hidden">
-    <div class="card">
-        <div class="panel-header">
-            <h2>🔔 Управление Push-уведомлениями</h2>
-        </div>
-        <div class="panel-body">
-            <!-- Статус подписки -->
-            <div class="form-group">
-                <label class="form-label">Статус подписки</label>
-                <div class="subscription-status" id="push-status">
-                    <div class="status-indicator">
-                        <span class="status-dot offline"></span>
-                        <span class="status-text">Проверка поддержки...</span>
-                    </div>
-                    <div class="status-details" id="push-details">
-                        <small>Инициализация системы уведомлений</small>
-                    </div>
-                </div>
+      <main class="container main-grid">
+        <!-- Notifications tab -->
+        <section id="tab-notifications" class="tab-panel">
+          <div class="panel-header">
+            <h2>Уведомления</h2>
+            <div class="panel-actions">
+              <input id="search-input" class="search" placeholder="Поиск по заголовку, содержанию или тегам..." oninput="onSearchInput(event)" />
             </div>
-            
-            <!-- Кнопки управления -->
-            <div class="form-group">
-                <div class="button-group">
-                    <button class="btn btn-primary" onclick="togglePushNotifications()" id="push-toggle-btn">
-                        🔔 Включить уведомления
-                    </button>
-                    <button class="btn btn-outline" onclick="testPushNotification()" id="push-test-btn">
-                        🧪 Тестовое уведомление
-                    </button>
-                </div>
-            </div>
-            
-            <!-- Информация о подписке -->
-            <div class="subscription-info" id="subscription-info" style="display: none;">
-                <div class="info-card">
-                    <h4>📊 Информация о подписке</h4>
-                    <div class="info-grid">
-                        <div class="info-item">
-                            <span class="info-label">Статус:</span>
-                            <span class="info-value" id="info-status">Активна</span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">Подписок всего:</span>
-                            <span class="info-value" id="info-total">0</span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">Ваш ID:</span>
-                            <span class="info-value" id="info-userid">-</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+          </div>
+          <div class="notif-files"></div>
 
-    <!-- Панель отправки кастомных уведомлений (только для админов) -->
-    <div class="card" style="margin-top: 20px;">
-        <div class="panel-header">
-            <h2>📨 Отправка Push-уведомлений</h2>
-        </div>
-        <div class="panel-body">
-            <div class="form-group">
-                <label class="form-label">Заголовок уведомления</label>
-                <input type="text" class="form-input" id="push-title" placeholder="Например: Важное обновление">
-            </div>
-            <div class="form-group">
-                <label class="form-label">Текст уведомления</label>
-                <textarea class="form-input form-textarea" id="push-message" 
-                          placeholder="Опишите содержание уведомления..." rows="3"></textarea>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Тип уведомления</label>
-                <select class="form-input" id="push-type">
-                    <option value="info">📢 Информационное</option>
-                    <option value="warning">⚠️ Предупреждение</option>
-                    <option value="urgent">🚨 Срочное</option>
-                    <option value="success">✅ Успех</option>
-                </select>
-            </div>
-            <div class="button-group">
-                <button class="btn btn-primary" onclick="sendCustomPush()">
-                    📨 Отправить уведомление
-                </button>
-                <button class="btn btn-outline" onclick="clearPushForm()">
-                    🗑️ Очистить форму
-                </button>
-            </div>
-        </div>
-    </div>
+          <div id="notifications-container" class="notifications-list"></div>
+          
 </div>
-            <div class="container">
-                <div class="admin-panel">
-                    <div class="card">
-                        <div class="panel-header">
-                            <h2>📝 Создать уведомление</h2>
-                        </div>
-                        <div class="panel-body">
-                            <!-- Основная информация -->
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label class="form-label">📌 Заголовок *</label>
-                                    <input type="text" id="notification-title" class="form-input" 
-                                           placeholder="Введите заголовок уведомления" required>
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label class="form-label">🏷️ Категория</label>
-                                    <select id="notification-category" class="form-input">
-                                        <option value="общее">📋 Общее</option>
-                                        <option value="расписание">📅 Расписание</option>
-                                        <option value="учеба">🎓 Учеба</option>
-                                        <option value="мероприятия">🎉 Мероприятия</option>
-                                        <option value="техническое">🔧 Техническое</option>
-                                        <option value="срочное">🚨 Срочное</option>
-                                    </select>
-                                </div>
-                            </div>
 
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label class="form-label">⭐ Приоритет</label>
-                                    <select id="notification-priority" class="form-input">
-                                        <option value="medium">🟡 Средний</option>
-                                        <option value="low">🟢 Низкий</option>
-                                        <option value="high">🟠 Высокий</option>
-                                        <option value="critical">🔴 Критический</option>
-                                    </select>
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label class="form-label">🏷️ Теги (через запятую)</label>
-                                    <input type="text" id="notification-tags" class="form-input" 
-                                           placeholder="сессия, экзамен, лекция...">
-                                    <small class="form-hint">Например: математика, программирование, зачет</small>
-                                </div>
-                            </div>
+        </section>
 
-                            <!-- Содержание уведомления -->
-                            <div class="form-group">
-                                <label class="form-label">📄 Содержание уведомления *</label>
-                                <textarea id="notification-content" class="form-input form-textarea" 
-                                          placeholder="Введите содержание уведомления..." 
-                                          rows="6" required></textarea>
-                            </div>
+        <!-- Filters tab -->
+        <section id="tab-filters" class="tab-panel hidden">
+          <h2>Фильтры</h2>
+          <div class="filters-card card">
+            <label>Категория</label>
+            <select id="filter-category" onchange="applyFilterChange()">
+              <option value="all">все</option>
+              <option value="общее">общее</option>
+              <option value="расписание">расписание</option>
+              <option value="учеба">учеба</option>
+              <option value="мероприятия">мероприятия</option>
+              <option value="техническое">техническое</option>
+              <option value="срочное">срочное</option>
+            </select>
 
-                            <!-- Дополнительные опции -->
-                            <div class="form-group">
-                                <div class="checkbox-group">
-                                    <input type="checkbox" id="notification-important" class="checkbox">
-                                    <label for="notification-important" class="form-label">
-                                        ❗ Важное уведомление
-                                    </label>
-                                </div>
-                            </div>
+            <label>Важность</label>
+            <select id="filter-importance" onchange="applyFilterChange()">
+              <option value="all">Все</option>
+              <option value="important">Только важные</option>
+              <option value="normal">Обычные</option>
+            </select>
 
-                            <button onclick="createNotification()" class="btn btn-primary">
-                                📢 Опубликовать уведомление
-                            </button>
-                            <div id="push-admin-panel" class="admin-panel hidden">
-  
-  <div class="card" style="margin-top: 20px;">
-    <div class="panel-header">
-      <h2>📨 Отправка Push-уведомлений</h2>
+            <label>Приоритет</label>
+            <select id="filter-priority" onchange="applyFilterChange()">
+              <option value="all">Все</option>
+              <option value="critical">Критический</option>
+              <option value="high">Высокий</option>
+              <option value="medium">Средний</option>
+              <option value="low">Низкий</option>
+            </select>
+
+            <div style="margin-top:12px">
+              <button class="btn primary" onclick="applyFilterChange()">Применить</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Settings tab -->
+        <section id="tab-settings" class="tab-panel hidden">
+          <h2>Настройки уведомлений</h2>
+          <div class="settings-card card">
+            <div class="row">
+              <div>
+                <p class="muted">Push-уведомления в этом браузере</p>
+                <div id="push-status" class="push-status">
+                  <span id="push-status-dot" class="dot offline"></span>
+                  <span id="push-status-text">Проверка...</span>
+                </div>
+              </div>
+              <div class="actions">
+                <button class="btn primary" id="push-toggle-btn" onclick="togglePush()">Включить уведомления</button>
+                <button class="btn outline" onclick="openNotificationPermission()" style="margin-top:12px">Настройки браузера</button>
+              </div>
+            </div>
+            <div id="push-details" class="muted small" style="margin-top:10px">Подписка хранится на сервере и связана с вашим аккаунтом.</div>
+          </div>
+        </section>
+
+        <!-- Admin tab -->
+        <section id="tab-admin" class="tab-panel hidden">
+  <h2>Панель администратора</h2>
+
+  <div class="admin-block">
+    <h3>Создать уведомление</h3>
+
+    <div class="admin-grid">
+
+      <div class="admin-form-group">
+        <label>Заголовок</label>
+        <input id="notification-title" type="text">
+      </div>
+
+      <div class="admin-form-group admin-grid-full">
+        <label>Содержание</label>
+        <textarea id="notification-content"></textarea>
+      </div>
+
+      <div class="admin-form-group">
+        <label>Приоритет</label>
+        <select id="notification-priority">
+          <option value="critical">Критический</option>
+          <option value="high">Высокий</option>
+          <option value="medium">Средний</option>
+          <option value="low">Низкий</option>
+        </select>
+      </div>
+
+      <div class="admin-form-group">
+        <label>Категория</label>
+        <select id="notification-category">
+          <option value="общее">Общее</option>
+          <option value="учеба">Учёба</option>
+          <option value="расписание">Расписание</option>
+          <option value="мероприятия">Мероприятия</option>
+          <option value="техническое">Техническое</option>
+          <option value="срочное">Срочное</option>
+        </select>
+      </div>
+
+      <div class="admin-form-group admin-grid-full">
+        <label>Файлы (можно несколько)</label>
+        <input type="file" id="notification-files" multiple>
+      </div>
+
+      <div class="admin-form-group">
+        <label><input type="checkbox" id="notification-important"> Важное</label>
+      </div>
+
+      <div class="admin-form-group">
+        <label><input type="checkbox" id="notification-send-push"> Отправить Push</label>
+      </div>
+
+      <div class="admin-form-group admin-grid-full">
+        <button class="btn primary" onclick="createNotification()">Опубликовать</button>
+      </div>
+
     </div>
-    <div class="panel-body">
-      <div class="form-group">
-        <label class="form-label">Заголовок уведомления</label>
-        <input type="text" class="form-input" id="push-title" placeholder="Введите заголовок">
+  </div>
+
+  <div class="admin-block">
+    <h3>Отправить Push вручную</h3>
+
+    <div class="admin-grid">
+
+      <div class="admin-form-group">
+        <label>Заголовок</label>
+        <input id="push-title" type="text">
       </div>
-      <div class="form-group">
-        <label class="form-label">Текст уведомления</label>
-        <textarea class="form-input form-textarea" id="push-message" placeholder="Введите текст уведомления"></textarea>
+
+      <div class="admin-form-group admin-grid-full">
+        <label>Сообщение</label>
+        <input id="push-message" type="text">
       </div>
-      <div class="form-group">
-        <label class="form-label">Получатели</label>
-        <select class="form-input" id="push-target">
-          <option value="all">Все пользователи</option>
+
+      <div class="admin-form-group">
+        <label>Цель</label>
+        <select id="push-target">
+          <option value="all">Все</option>
           <option value="students">Только студенты</option>
         </select>
       </div>
-      <button class="btn btn-primary" onclick="sendCustomPush()">
-        Отправить Push-уведомление
-      </button>
+
+      <div class="admin-form-group admin-grid-full">
+        <button class="btn primary" onclick="sendAdminPush()">Отправить</button>
+      </div>
+
     </div>
   </div>
-</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
 
-        <!-- 📢 СПИСОК УВЕДОМЛЕНИЙ -->
-        <section class="notifications-section">
-            <div class="container">
-                <div class="section-header">
-                    <h2>📢 Последние уведомления</h2>
-                    <p>Актуальная информация для студентов</p>
-                    
-                    <!-- 🔍 ПАНЕЛЬ ПОИСКА И ФИЛЬТРОВ -->
-                    <div class="search-filters-panel">
-                        <!-- Поиск -->
-                        <div class="search-box">
-                            <input type="text" id="search-input" class="search-input" 
-                                   placeholder="🔍 Поиск по уведомлениям...">
-                        </div>
-                        
-                        <!-- Фильтры - ИСПРАВЛЕННАЯ ВЕРСИЯ -->
-                        <div class="filters-container">
-                            <div class="filters-row">
-                                <select id="filter-category" class="filter-select">
-                                    <option value="all">Все категории</option>
-                                    <option value="общее">📋 Общее</option>
-                                    <option value="расписание">📅 Расписание</option>
-                                    <option value="учеба">🎓 Учеба</option>
-                                    <option value="мероприятия">🎉 Мероприятия</option>
-                                    <option value="техническое">🔧 Техническое</option>
-                                    <option value="срочное">🚨 Срочное</option>
-                                </select>
-                                
-                                <select id="filter-priority" class="filter-select">
-                                    <option value="all">Все приоритеты</option>
-                                    <option value="critical">🔴 Критический</option>
-                                    <option value="high">🟠 Высокий</option>
-                                    <option value="medium">🟡 Средний</option>
-                                    <option value="low">🟢 Низкий</option>
-                                </select>
-                                
-                                <select id="filter-importance" class="filter-select">
-                                    <option value="all">Все уведомления</option>
-                                    <option value="important">Только важные</option>
-                                    <option value="normal">Только обычные</option>
-                                </select>
-                            </div>
-                            
-                            <div class="filters-row">
-                                <select id="filter-author" class="filter-select">
-                                    <option value="all">Все авторы</option>
-                                    <option value="admin">Только администратор</option>
-                                </select>
-                                
-                                <div class="date-filters">
-                                    <input type="date" id="filter-date-from" class="filter-date" placeholder="С даты">
-                                    <input type="date" id="filter-date-to" class="filter-date" placeholder="По дату">
-                                </div>
-                                
-                                <div class="filter-buttons">
-                                    <button onclick="applyFilters()" class="btn btn-primary btn-sm">
-                                        ✅ Применить
-                                    </button>
-                                    
-                                    <button onclick="clearFilters()" class="btn btn-outline btn-sm">
-                                        🗑️ Очистить
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Статистика -->
-                        <div class="search-stats" id="search-stats">
-                            Показано <span id="shown-count">0</span> из <span id="total-count">0</span> уведомлений
-                        </div>
-                    </div>
-                </div>
-                
-                <div id="notifications-container" class="notifications-grid">
-                    <!-- Уведомления будут загружаться здесь -->
-                </div>
-            </div>
-        </section>
-    </div>
+</section>
 
-    <script src="app.js"></script>
+
+
+  <script src="app.js"></script>
 </body>
 </html>
-
-
-
