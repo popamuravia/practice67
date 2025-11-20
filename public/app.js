@@ -16,6 +16,108 @@ let currentFilters = {
 
 let pendingFilters = {...currentFilters};
 let pushManager = null;
+let pushSubscription = null;
+
+// Проверяем статус после загрузки страницы
+document.addEventListener("DOMContentLoaded", () => {
+    initPushStatus();
+});
+
+// Проверка текущего статуса push
+async function initPushStatus() {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+        updatePushUI(false, "Браузер не поддерживает push");
+        return;
+    }
+
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) {
+        updatePushUI(false, "Service Worker не зарегистрирован");
+        return;
+    }
+
+    const sub = await reg.pushManager.getSubscription();
+    pushSubscription = sub;
+
+    if (sub) {
+        updatePushUI(true, "Уведомления включены");
+    } else {
+        updatePushUI(false, "Уведомления выключены");
+    }
+}
+
+// Кнопка включения / выключения уведомлений
+async function togglePushNotifications() {
+    // ❌ Если уже подписан → выключаем
+    if (pushSubscription) {
+        await pushSubscription.unsubscribe();
+        pushSubscription = null;
+        updatePushUI(false, "Уведомления выключены");
+        return;
+    }
+
+    // Если уведомления заблокированы
+    if (Notification.permission === "denied") {
+        alert("Вы запретили уведомления в браузере. Разрешите их в настройках.");
+        return;
+    }
+
+    // ⚠️ Запрашиваем разрешение
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") {
+        updatePushUI(false, "Уведомления выключены");
+        return;
+    }
+
+    // Подписываем на push
+    const reg = await navigator.serviceWorker.getRegistration();
+    const vapidKey = "ВАШ_PUBLIC_VAPID_KEY";   // Вставь ключ!
+
+    try {
+        const sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(vapidKey)
+        });
+
+        pushSubscription = sub;
+        console.log("Подписка:", JSON.stringify(sub));
+
+        updatePushUI(true, "Уведомления включены");
+
+    } catch (err) {
+        console.error("Ошибка подписки:", err);
+        updatePushUI(false, "Ошибка подписки");
+    }
+}
+
+// Обновление UI
+function updatePushUI(enabled, text) {
+    const status = document.getElementById("push-status");
+    const btn = document.getElementById("push-toggle-btn");
+
+    status.innerHTML = `
+        <span class="status-dot ${enabled ? "online" : "offline"}"></span>
+        <span>${text}</span>
+    `;
+
+    btn.textContent = enabled ? "Выключить уведомления" : "Включить уведомления";
+}
+
+// Преобразование ключа
+function urlBase64ToUint8Array(base64String) {
+    const padding = "=".repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding)
+        .replace(/-/g, "+")
+        .replace(/_/g, "/");
+
+    const rawData = atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+
+    for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+}
 
 // 📧 PUSH УВЕДОМЛЕНИЯ - Менеджер
 // 📧 PUSH УВЕДОМЛЕНИЯ - Упрощенный и надежный менеджер
