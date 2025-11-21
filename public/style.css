@@ -1,4 +1,3 @@
-/* Redesigned style.css — cleaner, modern dark UI, better spacing, smoother visuals */
 :root{
   --primary:#3B82F6;
   --primary-hover:#60A5FA;
@@ -280,3 +279,4 @@ input:focus,textarea:focus,select:focus{border-color:var(--primary)}
   .bar-grid{grid-template-columns:1fr auto}
   .filters-card{grid-template-columns:1fr}
 }
+
