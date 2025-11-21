@@ -1,5 +1,3 @@
-// public/app.js — обновлённый фронтенд: вкладки, auth, push (вариант Б)
-// public/app.js — обновлённый фронтенд: вкладки, auth, push (вариант Б)
 let authToken = null;
 let currentUser = null;
 let allNotifications = [];
@@ -8,8 +6,6 @@ let swRegistration = null;
 let pushSubscription = null;
 
 
-
-// ... (full content from uploaded file inserted here)
 window.onload = () => {
   registerServiceWorker();
   checkAuth();
@@ -57,7 +53,6 @@ function checkAuth() {
 }
 
 function showMainApp() {
-  // скрыть панель администратора ВСЕГДА при входе
   const adminTab = document.getElementById("admin-tab");
   adminTab.style.display = "none";
   adminTab.classList.add("hidden");
@@ -66,7 +61,6 @@ function showMainApp() {
   document.getElementById('main-app').classList.remove('hidden');
   document.getElementById('user-info').textContent = `${currentUser.name} (${currentUser.role})`;
 
-  // показать только если админ
   if (currentUser.role === "admin") {
     adminTab.classList.remove("hidden");
     adminTab.style.display = "inline-block";
@@ -136,7 +130,6 @@ async function togglePush() {
   if (!swRegistration) return alert('Service Worker не зарегистрирован');
 
   if (pushSubscription) {
-    // unsubscribe both client and server
     try {
       await pushSubscription.unsubscribe();
     } catch (e) { console.warn('client unsubscribe failed', e); }
@@ -324,4 +317,5 @@ async function deleteNotification(id) {
 
   await loadNotifications();
 }
+
 
